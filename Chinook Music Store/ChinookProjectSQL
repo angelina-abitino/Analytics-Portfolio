@@ -1,0 +1,373 @@
+/* Chinook Dataset Exploration
+   - Language: SQLite
+   - Data questions sourced from https://m-soro.github.io/Business-Analytics/SQL-for-Data-Analysis/L4-Project-Query-Music-Store/
+*/
+
+
+-- What orders were placed in January 2013?
+SELECT * 
+  FROM chinook.invoices invoices
+ WHERE strftime('%m', invoices.InvoiceDate) = '01'
+   AND strftime('%Y', invoices.InvoiceDate) = '2013'
+;
+
+
+-- Which countries have the most Invoices? 
+SELECT invoices.BillingCountry
+      ,COUNT(invoices.InvoiceId) AS 'Number of Invoices'
+  FROM chinook.invoices invoices
+  GROUP BY invoices.BillingCountry
+  ORDER BY 2 DESC
+;
+
+-- Which city has the best customers?
+SELECT invoices.BillingCity
+      ,ROUND(SUM(invoices.Total), 2) AS 'Total (USD)'
+  FROM chinook.invoices invoices
+  GROUP BY invoices.BillingCity
+  ORDER BY SUM(invoices.Total) DESC
+  LIMIT 1
+;
+
+-- Who is the best customer? 
+SELECT customers.FirstName || ' ' || customers.LastName AS 'Customer'
+      ,invoices.BillingCity
+      ,ROUND(SUM(invoices.Total), 2) AS 'Total (USD)'
+  FROM chinook.invoices invoices
+    INNER JOIN chinook.customers customers 
+      ON invoices.CustomerId = customers.CustomerId
+  GROUP BY invoices.CustomerID
+          ,customers.FirstName
+          ,customers.LastName
+          ,invoices.BillingCity
+  ORDER BY SUM(invoices.Total) DESC
+  LIMIT 1
+;
+
+-- Write a query to return the email, first name, last name, and Genre of all Rock Music listeners.
+SELECT DISTINCT customers.Email
+      ,customers.FirstName || ' ' || customers.LastName AS 'Customer'
+      ,genres.Name
+  FROM chinook.invoices invoices
+    INNER JOIN chinook.customers customers
+     ON invoices.CustomerId = customers.CustomerId
+    INNER JOIN chinook.invoice_items invoice_items
+     ON invoices.InvoiceId = invoice_items.InvoiceId
+    INNER JOIN chinook.tracks tracks
+     ON invoice_items.TrackId = tracks.TrackId
+    INNER JOIN chinook.genres genres
+     ON tracks.GenreId = genres.GenreId
+  WHERE genres.GenreId = 1 -- Rock
+  ORDER BY customers.Email
+;
+
+-- Who is writing the rock music? Let's return artists that have written the most rock music in the dataset.
+SELECT artists.Name
+      ,COUNT(DISTINCT tracks.TrackId) AS 'Number of Tracks'
+  FROM chinook.tracks tracks
+    INNER JOIN chinook.genres genres
+     ON tracks.GenreId = genres.GenreId
+    INNER JOIN chinook.albums albums
+     ON tracks.AlbumId = albums.AlbumId
+    INNER JOIN chinook.artists artists
+     ON albums.ArtistId = artists.ArtistId
+  WHERE genres.GenreId = 1 -- Rock
+  GROUP BY artists.Name
+  ORDER BY COUNT(DISTINCT tracks.TrackId) DESC
+  LIMIT 10
+;
+  
+-- Which artist has earned the most according to the InvoiceLines?  --> Iron Maiden
+SELECT artists.Name
+      ,ROUND(SUM(invoice_items.UnitPrice * invoice_items.Quantity), 2) AS 'Total Sales (USD)'
+  FROM chinook.invoice_items invoice_items
+    INNER JOIN chinook.tracks tracks
+     ON invoice_items.TrackId = tracks.TrackId
+    INNER JOIN chinook.albums albums
+     ON tracks.AlbumId = albums.AlbumId
+    INNER JOIN chinook.artists
+     ON albums.ArtistId = artists.ArtistId
+  GROUP BY artists.Name
+  ORDER BY 2 DESC
+  LIMIT 1
+;
+
+-- Which customer spent the most on Iron Maiden?
+SELECT customers.FirstName || ' ' || customers.LastName AS Customer
+      ,artists.Name AS 'Artist'
+      ,ROUND(SUM(invoice_items.UnitPrice * invoice_items.Quantity), 2) AS 'Total Sales (USD)'
+  FROM chinook.invoices invoices
+   INNER JOIN chinook.customers customers
+    ON invoices.CustomerId = customers.CustomerId
+   INNER JOIN chinook.invoice_items invoice_items
+    ON invoices.InvoiceId = invoice_items.InvoiceId
+   INNER JOIN chinook.tracks tracks
+    ON invoice_items.TrackId = tracks.TrackId
+   INNER JOIN chinook.albums albums
+    ON tracks.AlbumId = albums.AlbumId
+   INNER JOIN chinook.artists
+    ON albums.ArtistId = artists.ArtistId
+  WHERE artists.Name = 'Iron Maiden'
+  GROUP BY 1, 2
+  ORDER BY 3 DESC
+  LIMIT 1
+;
+
+-- How many songs per genre did Astrid Gruber purchase?
+SELECT customers.FirstName || ' ' || customers.LastName  AS 'Customer'
+      ,genres.Name AS 'Genre'
+      ,COUNT(DISTINCT invoice_items.TrackId) AS 'Number of Items'
+  FROM chinook.invoices invoices
+   INNER JOIN chinook.customers customers
+    ON invoices.CustomerId = customers.CustomerId
+   INNER JOIN chinook.invoice_items invoice_items
+    ON invoices.InvoiceId = invoice_items.InvoiceId
+   INNER JOIN chinook.tracks tracks
+    ON invoice_items.TrackId = tracks.TrackId
+   INNER JOIN chinook.genres
+    ON tracks.GenreId = genres.GenreId
+  WHERE customers.CustomerId = 12 -- Astrid Gruber
+  GROUP BY 1, 2
+  ORDER BY 3 DESC
+;
+
+-- How much did each customer spend per genres?
+SELECT customers.FirstName || ' ' || customers.LastName  AS 'Customer'
+      ,genres.Name AS 'Genre'
+      ,ROUND(SUM(invoice_items.UnitPrice * invoice_items.Quantity), 2) AS 'Total (USD)'
+  FROM chinook.invoices invoices
+   INNER JOIN chinook.customers customers
+    ON invoices.CustomerId = customers.CustomerId
+   INNER JOIN chinook.invoice_items invoice_items
+    ON invoices.InvoiceId = invoice_items.InvoiceId
+   INNER JOIN chinook.tracks tracks
+    ON invoice_items.TrackId = tracks.TrackId
+   INNER JOIN chinook.genres genres
+    ON tracks.GenreId = genres.GenreId
+--  WHERE customers.CustomerId = 13 -- How much did Fernanda Ramos spend per genres?
+  GROUP BY 1, 2
+  ORDER BY 1, 2
+;
+
+-- How much was spent over all on each genre?
+SELECT genres.Name
+      ,ROUND(SUM(invoice_items.UnitPrice * invoice_items.Quantity), 2) AS 'Total (USD)'
+  FROM chinook.invoice_items invoice_items
+   INNER JOIN chinook.tracks tracks
+    ON invoice_items.TrackId = tracks.TrackId
+   INNER JOIN chinook.genres genres
+    ON tracks.GenreId = genres.GenreId
+  GROUP BY genres.GenreId
+          ,genres.Name
+  ORDER BY genres.Name
+;
+
+-- How much did each user spend in total? Oragnize users by country.
+SELECT invoices.BillingCountry
+      ,customers.FirstName || ' ' || customers.LastName  AS 'Customer'
+      ,ROUND(SUM(invoices.Total), 2) AS 'Total (USD)'
+  FROM chinook.invoices invoices
+   INNER JOIN chinook.customers customers
+    ON invoices.CustomerId = customers.CustomerId
+--  WHERE invoices.BillingCountry = 'USA' -- How much did each American spend?
+  GROUP BY 1, 2
+  ORDER BY 1, 2
+;
+
+ -- How many users are there per country?
+ SELECT customers.Country
+       ,COUNT(customers.CustomerId) AS 'Number of Customers'
+   FROM chinook.customers customers
+   GROUP BY customers.Country
+;
+
+-- How many songs per genre does the music store have?
+SELECT genres.Name
+      ,COUNT(DISTINCT tracks.TrackId) AS 'Number of Songs'
+  FROM chinook.tracks tracks
+   INNER JOIN chinook.genres genres
+    ON tracks.GenreId = genres.GenreId
+  GROUP BY genres.GenreId
+          ,genres.Name
+  ORDER BY genres.Name
+;
+
+-------------------------------------------------------------------------------------------------------------------------------
+/* Chinook Music Store Data Story Queries */
+
+-- TREND: How have the Chinook Music Store's sales trended over time? --> SALES ARE DROPPING!
+--   Viz idea: Show trend line for total sales and lines for sales per genre
+
+-- by year
+SELECT STRFTIME('%Y', invoices.InvoiceDate) AS 'Year'
+      ,ROUND(SUM(invoices.Total), 2) AS 'Total (USD)'
+  FROM chinook.invoices invoices
+  GROUP BY 1
+  ORDER BY 1
+;
+
+-- by month
+SELECT STRFTIME('%m-%Y', invoices.InvoiceDate) AS 'Month'
+      ,ROUND(SUM(invoices.Total), 2) AS 'Total (USD)'
+  FROM chinook.invoices invoices
+  GROUP BY 1
+  ORDER BY STRFTIME('%Y', invoices.InvoiceDate)
+          ,STRFTIME('%m', invoices.InvoiceDate)
+;
+
+-- GENRE: What are the top selling genres? How much and what percent of the revenue did they bring in? 
+--        How many songs per genre does the music store have and how should they grow their catalog?
+-- How much was spent over all on each genre?
+
+SELECT sub.Genre
+      ,ROUND(sub.[Genre Total], 2) AS 'Genre Total'
+      ,ROUND((100 * sub.[Genre Total]) / (SELECT SUM(UnitPrice*Quantity) FROM chinook.invoice_items), 2) AS 'Percent Sales'
+  FROM (SELECT genres.GenreId
+              ,genres.Name AS 'Genre'
+              ,SUM(invoice_items.UnitPrice * invoice_items.Quantity) AS 'Genre Total'
+          FROM chinook.invoice_items invoice_items
+           INNER JOIN chinook.tracks tracks
+            ON invoice_items.TrackId = tracks.TrackId
+           INNER JOIN chinook.genres genres
+            ON tracks.GenreId = genres.GenreId   
+          GROUP BY genres.GenreId) sub
+  ORDER BY 3 DESC
+;
+
+-- Sales per genre over time
+SELECT STRFTIME('%Y', invoices.InvoiceDate) AS 'Year'
+      ,genres.Name AS 'Genre'
+      ,ROUND(SUM(invoice_items.UnitPrice * invoice_items.Quantity), 2) AS 'Total (USD)'
+  FROM chinook.invoice_items invoice_items
+   INNER JOIN chinook.invoices invoices
+    ON invoice_items.InvoiceId = invoices.InvoiceId
+   INNER JOIN chinook.tracks tracks
+    ON invoice_items.TrackId = tracks.TrackId
+   INNER JOIN chinook.genres genres
+    ON tracks.GenreId = genres.GenreId
+   INNER JOIN (
+               SELECT sub.Genre
+                     ,ROUND(sub.[Genre Total], 2) AS 'Genre Total'
+                     ,ROUND((100 * sub.[Genre Total]) / (SELECT SUM(UnitPrice*Quantity) FROM chinook.invoice_items), 2) AS 'Percent Sales'
+                 FROM (SELECT genres.GenreId
+                             ,genres.Name AS 'Genre'
+                             ,SUM(invoice_items.UnitPrice * invoice_items.Quantity) AS 'Genre Total'
+                         FROM chinook.invoice_items invoice_items
+                           INNER JOIN chinook.tracks tracks
+                            ON invoice_items.TrackId = tracks.TrackId
+                           INNER JOIN chinook.genres genres
+                            ON tracks.GenreId = genres.GenreId   
+                          GROUP BY genres.GenreId) sub
+                  ORDER BY 3 DESC
+                  LIMIT 10
+              ) TopTenGenres
+      ON genres.Name = TopTenGenres.Genre                
+  GROUP BY 1
+          ,genres.GenreId
+          ,genres.Name
+  ORDER BY 1, 2 
+;
+
+-- Songs per genre
+SELECT sub.Genre
+      ,sub.[Number of Songs]
+      ,ROUND((100.00 * sub.[Number of Songs]) / (SELECT COUNT(DISTINCT TrackId) FROM chinook.tracks), 2) AS 'Percent Song Inventory'
+  FROM (SELECT genres.Name AS 'Genre'
+              ,COUNT(DISTINCT tracks.TrackId) AS 'Number of Songs'
+          FROM chinook.tracks tracks
+           INNER JOIN chinook.genres genres
+            ON tracks.GenreId = genres.GenreId
+          GROUP BY genres.GenreId
+                  ,genres.Name) sub
+  ORDER BY 2 DESC
+;
+
+
+-- ARTIST: Who are the top selling artists? How much and what percent of the revenue did they bring in?
+SELECT sub.Artist
+      ,ROUND(sub.[Artist Sales], 2) AS 'Artist Sales'
+      ,ROUND(100.0 * sub.[Artist Sales] / (SELECT SUM(UnitPrice * Quantity) FROM chinook.invoice_items), 2) AS 'Percent Sales'
+  FROM  (SELECT artists.Name AS 'Artist'
+               ,SUM(invoice_items.UnitPrice * invoice_items.Quantity) AS 'Artist Sales'
+           FROM chinook.invoice_items invoice_items
+            INNER JOIN chinook.tracks tracks
+             ON invoice_items.TrackId = tracks.TrackId
+            INNER JOIN chinook.albums albums
+             ON tracks.AlbumId = albums.AlbumId
+            INNER JOIN chinook.artists
+             ON albums.ArtistId = artists.ArtistId
+          GROUP BY artists.Name) sub
+  ORDER BY 2 DESC
+  LIMIT 10
+;
+
+-- LOCATION: Where do our listeners live? Where should we market to?
+--           How much do they spend? What are the sales in each country? 
+SELECT sub.BillingCountry
+      ,ROUND(AVG(sub.[Country Sales]), 2) AS 'Country Sales'
+      ,ROUND(AVG(100.0 * sub.[Country Sales] / (SELECT SUM(Total) FROM chinook.invoices)), 2) AS 'Percent Sales'
+      ,AVG(sub.[Number of Customers]) AS 'Number of Customers'
+      ,ROUND(AVG(subCustomers.[Average Order]), 2) AS 'Average Customer Order'
+  FROM (SELECT invoices.BillingCountry
+              ,SUM(invoices.Total) AS 'Country Sales'
+              ,COUNT(DISTINCT invoices.CustomerId) AS 'Number of Customers'
+          FROM chinook.invoices invoices
+          GROUP BY invoices.BillingCountry) sub
+            INNER JOIN (SELECT invoices.CustomerId
+                              ,MAX(invoices.BillingCountry) AS 'BillingCountry'
+                              ,AVG(invoices.Total) AS 'Average Order'
+                          FROM chinook.invoices invoices
+                          GROUP BY invoices.CustomerId) subCustomers
+              ON sub.BillingCountry = subCustomers.BillingCountry
+  GROUP BY sub.BillingCountry
+  ORDER BY 2 DESC
+  LIMIT 10
+;
+
+-- What is the average order per customer?
+SELECT invoices.CustomerId
+      ,MAX(invoices.BillingCountry) AS 'Country'
+      ,AVG(invoices.Total) AS 'Average Order'
+  FROM chinook.invoices invoices
+  GROUP BY invoices.CustomerId
+
+
+--           How many orders were there per country? 
+SELECT sub.BillingCountry
+      ,sub.[Number of Orders]
+      ,ROUND(100.0 * sub.[Number of Orders] / (SELECT COUNT(invoices.InvoiceId) FROM chinook.invoices), 2) AS 'Perecent Orders'
+  FROM (SELECT invoices.BillingCountry
+              ,COUNT(invoices.InvoiceId) AS 'Number of Orders'
+          FROM chinook.invoices invoices
+          GROUP BY invoices.BillingCountry) sub
+  ORDER BY 2 DESC
+  LIMIT 10
+;
+
+-- EMPLOYEES: What employees have the highest sales? How can we improve sales per employee?
+SELECT employees.EmployeeId
+      ,employees.FirstName || ' ' || employees.LastName AS 'Employee'
+      ,ROUND(SUM(invoices.Total), 2) AS 'Total (USD)'
+  FROM chinook.invoices invoices
+   INNER JOIN chinook.customers customers
+    ON invoices.CustomerId = customers.CustomerId
+   INNER JOIN chinook.employees employees
+    ON customers.SupportRepId = employees.EmployeeId
+    WHERE invoices.InvoiceDate >= '2003-01-01'
+   GROUP BY 1, 2
+;
+    
+--           What is the tenure of each sales support agent?
+SELECT employees.EmployeeId
+      ,employees.FirstName || ' ' || employees.LastName AS 'Employee'
+      ,employees.HireDate
+      ,JULIANDAY(DATE('2013-12-31')) - JULIANDAY(employees.HireDate) AS 'Days Employed'
+  FROM chinook.employees employees
+  WHERE employees.Title = 'Sales Support Agent'
+  ORDER BY 4 DESC
+;  
+
+-- When was the first and last sale of the Chinook Music Store?
+SELECT MIN(InvoiceDate), MAX(InvoiceDate) FROM chinook.invoices;
+
+
